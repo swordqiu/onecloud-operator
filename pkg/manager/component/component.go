@@ -1042,6 +1042,10 @@ func (m *ComponentManager) Logger() manager.Manager {
 	return newLoggerManager(m)
 }
 
+func (m *ComponentManager) Register() manager.Manager {
+	return newRegisterManager(m)
+}
+
 func (m *ComponentManager) Region() manager.Manager {
 	return newRegionManager(m)
 }
