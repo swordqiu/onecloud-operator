@@ -125,6 +125,11 @@ const (
 	RegisterDB        = "yunionregister"
 	RegisterDBUser    = "yunionregister"
 
+	BillingAdminUser = "billingadmin"
+	BillingPort      = 30404
+	BillingDB        = "yunionbilling"
+	BillingDBUser    = "yunionbilling"
+
 	ServiceNameAPIGateway = "yunionapi"
 	ServiceTypeAPIGateway = "yunionapi"
 	ServiceNameWebsocket  = "websocket"
@@ -209,6 +214,9 @@ const (
 
 	ServiceNameRegister = "register"
 	ServiceTypeRegister = "register"
+
+	ServiceNameBilling = "billing"
+	ServiceTypeBilling = "billing"
 
 	ServiceNameYunionConf = "yunionconf"
 	ServiceTypeYunionConf = "yunionconf"
