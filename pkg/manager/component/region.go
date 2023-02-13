@@ -117,6 +117,17 @@ func (m *regionManager) getDeployment(oc *v1alpha1.OnecloudCluster, cfg *v1alpha
 		return nil, err
 	}
 	deploy.Spec.Template.Spec.ServiceAccountName = constants.ServiceAccountOnecloudOperator
+	configMap := controller.ComponentConfigMapName(oc, v1alpha1.RegionComponentType)
+	h := &VolumeHelper{
+		cluster:      oc,
+		optionCfgMap: configMap,
+		component:    v1alpha1.RegionComponentType,
+	}
+	h.addOnecloudVolumesWithReadOnly(true)
+	vols := h.GetVolumes()
+	mounts := h.GetVolumeMounts()
+	deploy.Spec.Template.Spec.Containers[0].VolumeMounts = append(deploy.Spec.Template.Spec.Containers[0].VolumeMounts, mounts...)
+	deploy.Spec.Template.Spec.Volumes = append(deploy.Spec.Template.Spec.Volumes, vols...)
 	return deploy, nil
 }
 

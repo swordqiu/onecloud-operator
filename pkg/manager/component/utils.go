@@ -582,15 +582,23 @@ func (h *VolumeHelper) addVmwareVolumes() *VolumeHelper {
 }
 
 func (h *VolumeHelper) addOnecloudVolumes() *VolumeHelper {
+	return h.addOnecloudVolumesWithReadOnly(false)
+}
+
+func (h *VolumeHelper) addOnecloudVolumesWithReadOnly(readOnly bool) *VolumeHelper {
 	var (
 		bidirectional = corev1.MountPropagationBidirectional
 		volSrcType    = corev1.HostPathDirectoryOrCreate
 	)
+	biDir := &bidirectional
+	if readOnly {
+		biDir = nil
+	}
 	h.volumeMounts = append(h.volumeMounts,
 		corev1.VolumeMount{
 			Name:             "var-run-onecloud",
 			MountPath:        "/var/run/onecloud",
-			MountPropagation: &bidirectional,
+			MountPropagation: biDir,
 		},
 	)
 	h.volumes = append(h.volumes,
@@ -790,6 +798,12 @@ func NewHostVolume(
 			MountPropagation: &bidirectional,
 		},
 		{
+			Name:             "vmsecurity",
+			ReadOnly:         false,
+			MountPath:        "/opt/VMSecurity",
+			MountPropagation: &bidirectional,
+		},
+		{
 			Name:      "usr",
 			ReadOnly:  false,
 			MountPath: "/usr/local",
@@ -862,6 +876,15 @@ func NewHostVolume(
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
 					Path: "/opt/cloud",
+					Type: &hostPathDirectory,
+				},
+			},
+		},
+		{
+			Name: "vmsecurity",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/opt/VMSecurity",
 					Type: &hostPathDirectory,
 				},
 			},
