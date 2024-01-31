@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
@@ -92,7 +93,7 @@ func NewOnecloudRCAdminConfig(oc *v1alpha1.OnecloudCluster, debug bool) *Oneclou
 		Password:      oc.Spec.Keystone.BootstrapPassword,
 		DomainName:    constants.DefaultDomain,
 		ProjectName:   constants.SysAdminProject,
-		ProjectDomain: "",
+		ProjectDomain: constants.DefaultDomain,
 		Insecure:      true,
 		Debug:         debug,
 		Timeout:       600,
@@ -184,23 +185,27 @@ func (w *OnecloudControl) NewWaiter(oc *v1alpha1.OnecloudCluster) onecloud.Waite
 }
 
 func (w *OnecloudControl) RunWithSession(oc *v1alpha1.OnecloudCluster, f func(s *mcclient.ClientSession) error) error {
+	return RunWithSession(oc, f)
+}
+
+func RunWithSession(oc *v1alpha1.OnecloudCluster, f func(s *mcclient.ClientSession) error) error {
 	sessionLock.Lock()
 	defer sessionLock.Unlock()
 
 	var s *mcclient.ClientSession
 	var err error
 	if !auth.IsAuthed() {
-		s, err = w.getSession(oc)
+		s, err = getSession(oc)
 		if err != nil {
 			return errors.Wrap(err, "get mcclient session")
 		}
-		w.initAuth(oc)
+		initAuth(oc)
 	} else {
-		s = w.getAuthBackgroudSession(oc, false)
+		s = getAuthBackgroudSession(oc, false)
 	}
 	s.SetServiceUrl("identity", GetAuthURL(oc))
 	if err := f(s); err != nil {
-		newSession := w.getAuthBackgroudSession(oc, true)
+		newSession := getAuthBackgroudSession(oc, true)
 		if err := f(newSession); err != nil {
 			return errors.Wrap(err, "RunWithSession twice")
 		}
@@ -228,11 +233,11 @@ func (w *OnecloudControl) RunWithSession(oc *v1alpha1.OnecloudCluster, f func(s 
 	return nil
 }*/
 
-func (w *OnecloudControl) getSession(oc *v1alpha1.OnecloudCluster) (*mcclient.ClientSession, error) {
+func getSession(oc *v1alpha1.OnecloudCluster) (*mcclient.ClientSession, error) {
 	return NewOnecloudClientSession(oc)
 }
 
-func (w *OnecloudControl) getAuthBackgroudSession(oc *v1alpha1.OnecloudCluster, refresh bool) *mcclient.ClientSession {
+func getAuthBackgroudSession(oc *v1alpha1.OnecloudCluster, refresh bool) *mcclient.ClientSession {
 	if !auth.IsAuthed() || refresh {
 		auth.SetDefaultAuthSource(mcclient.AuthSourceOperator)
 		config := NewOnecloudRCAdminConfig(oc, false)
@@ -241,7 +246,7 @@ func (w *OnecloudControl) getAuthBackgroudSession(oc *v1alpha1.OnecloudCluster, 
 	return auth.GetAdminSession(getRequestContext(), oc.Spec.Region)
 }
 
-func (w *OnecloudControl) initAuth(oc *v1alpha1.OnecloudCluster) {
+func initAuth(oc *v1alpha1.OnecloudCluster) {
 	config := NewOnecloudRCAdminConfig(oc, false)
 	auth.SetDefaultAuthSource(mcclient.AuthSourceOperator)
 	auth.Init(config.ToAuthInfo(), false, true, "", "")
@@ -304,37 +309,69 @@ func (c *realComponent) RunWithSession(oc *v1alpha1.OnecloudCluster, f func(s *m
 }*/
 
 func (c *realComponent) Keystone() PhaseControl {
-	return &keystoneComponent{newBaseComponent(c)}
+	return NewKeystonePhaseControl(c)
+}
+
+func NewKeystonePhaseControl(cm ComponentManager) PhaseControl {
+	return &keystoneComponent{newBaseComponent(cm)}
 }
 
 func (c *realComponent) KubeServer(nodeLister corelisters.NodeLister) PhaseControl {
+	return NewKubeServerPhaseControl(c, nodeLister)
+}
+
+func NewKubeServerPhaseControl(cm ComponentManager, nodeLister corelisters.NodeLister) PhaseControl {
 	return &kubeServerComponent{
-		baseComponent: newBaseComponent(c),
+		baseComponent: newBaseComponent(cm),
 		nodeLister:    nodeLister,
 	}
 }
 
 func (c *realComponent) Region() PhaseControl {
-	return &regionComponent{newBaseComponent(c)}
+	return NewRegionPhaseControl(c)
+}
+
+func NewRegionPhaseControl(cm ComponentManager) PhaseControl {
+	return &regionComponent{newBaseComponent(cm)}
 }
 
 func (c *realComponent) Glance() PhaseControl {
+	return NewGlancePhaseControl(c)
+}
+
+func NewGlancePhaseControl(c ComponentManager) PhaseControl {
 	return &glanceComponent{newBaseComponent(c)}
 }
 
 func (c *realComponent) YunionAgent() PhaseControl {
-	return &yunionagentComponent{newBaseComponent(c)}
+	return NewYunionAgentPhaseControl(c)
+}
+
+func NewYunionAgentPhaseControl(cm ComponentManager) PhaseControl {
+	return &yunionagentComponent{newBaseComponent(cm)}
 }
 
 func (c *realComponent) Devtool() PhaseControl {
+	return NewDevtoolPhaseControl(c)
+}
+
+func NewDevtoolPhaseControl(c ComponentManager) PhaseControl {
 	return &devtoolComponent{newBaseComponent(c)}
 }
 
 func (c *realComponent) Monitor() PhaseControl {
+	return NewMonitorPhaseControl(c)
+}
+
+func NewMonitorPhaseControl(c ComponentManager) PhaseControl {
 	return &monitorComponent{newBaseComponent(c)}
 }
 
 func (c *realComponent) Cloudproxy() PhaseControl {
+	return NewCloudproxyPhaseControl(c)
+}
+
+func NewCloudproxyPhaseControl(c ComponentManager) PhaseControl {
 	return &cloudproxyComponent{newBaseComponent(c)}
 }
 
@@ -445,6 +482,14 @@ func (c *baseComponent) registerService(serviceName, serviceType string) error {
 	})
 }
 
+func IsDockerComposeCluster(oc *v1alpha1.OnecloudCluster) bool {
+	return IsDockerComposeClusterName(oc.GetName())
+}
+
+func IsDockerComposeClusterName(name string) bool {
+	return name == constants.DockerComposeClusterName
+}
+
 type keystoneComponent struct {
 	*baseComponent
 }
@@ -458,7 +503,7 @@ func (c keystoneComponent) SystemInit(oc *v1alpha1.OnecloudCluster) error {
 	if len(oc.Status.RegionServer.RegionId) > 0 {
 		region = oc.Status.RegionServer.RegionId
 	}
-	if err := c.RunWithSession(func(s *mcclient.ClientSession) error {
+	if err := RunWithSession(oc, func(s *mcclient.ClientSession) error {
 		if err := doPolicyRoleInit(s); err != nil {
 			return errors.Wrap(err, "policy role init")
 		}
@@ -478,7 +523,7 @@ func (c keystoneComponent) SystemInit(oc *v1alpha1.OnecloudCluster) error {
 	}
 
 	// refresh session when update identity url
-	return c.RunWithSession(func(s *mcclient.ClientSession) error {
+	return RunWithSession(oc, func(s *mcclient.ClientSession) error {
 		if err := doRegisterCloudMeta(s, region); err != nil {
 			return errors.Wrap(err, "register cloudmeta endpoint")
 		}
@@ -504,7 +549,7 @@ func (c keystoneComponent) SystemInit(oc *v1alpha1.OnecloudCluster) error {
 		if !oc.Spec.Etcd.Disable {
 			var certName string
 			if oc.Spec.Etcd.EnableTls {
-				certConf, err := c.getEtcdCertificate()
+				certConf, err := c.getEtcdCertificate(oc, c.baseComponent.manager.GetController().kubeCli)
 				if err != nil {
 					return errors.Wrap(err, "get etcd cert")
 				}
@@ -539,11 +584,9 @@ func (c keystoneComponent) getCommonConfig(oc *v1alpha1.OnecloudCluster) (map[st
 	}, nil
 }
 
-func (c keystoneComponent) getEtcdCertificate() (*jsonutils.JSONDict, error) {
-	oc := c.GetCluster()
+func (c keystoneComponent) getEtcdCertificate(oc *v1alpha1.OnecloudCluster, kubeCli clientset.Interface) (*jsonutils.JSONDict, error) {
 	ret := jsonutils.NewDict()
-	ctl := c.baseComponent.manager.GetController()
-	secret, err := ctl.kubeCli.CoreV1().Secrets(oc.GetNamespace()).
+	secret, err := kubeCli.CoreV1().Secrets(oc.GetNamespace()).
 		Get(context.Background(), constants.EtcdClientSecret, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -554,8 +597,7 @@ func (c keystoneComponent) getEtcdCertificate() (*jsonutils.JSONDict, error) {
 	return ret, nil
 }
 
-func (c keystoneComponent) getEtcdUrl() string {
-	oc := c.GetCluster()
+func (c keystoneComponent) getEtcdUrl(oc *v1alpha1.OnecloudCluster) string {
 	scheme := "http"
 	if oc.Spec.Etcd.EnableTls {
 		scheme = "https"
@@ -693,6 +735,9 @@ func doCreateEtcdServiceEndpoint(oc *v1alpha1.OnecloudCluster, s *mcclient.Clien
 	}
 	pubHost := oc.Spec.LoadBalancerEndpoint
 	intHost := fmt.Sprintf("%s-etcd-client.%s.svc", oc.Name, oc.Namespace)
+	if IsDockerComposeCluster(oc) {
+		intHost = v1alpha1.EtcdComponentType.String()
+	}
 	if pubHost == "" {
 		pubHost = intHost
 	}
@@ -951,6 +996,62 @@ func (c *registerEndpointComponent) Setup() error {
 	return c.RegisterCloudServiceEndpoint(c.cType, c.serviceName, c.serviceType, c.port, c.prefix, true)
 }
 
+type influxdbComponent struct {
+	*registerEndpointComponent
+}
+
+func NewInfluxdbEndpointComponent(
+	man ComponentManager,
+	ctype v1alpha1.ComponentType,
+	serviceName string,
+	serviceType string,
+	port int, prefix string,
+) PhaseControl {
+	return &influxdbComponent{
+		registerEndpointComponent: &registerEndpointComponent{
+			baseComponent: newBaseComponent(man),
+			cType:         ctype,
+			serviceName:   serviceName,
+			serviceType:   serviceType,
+			port:          port,
+			prefix:        prefix,
+		},
+	}
+}
+
+func (c *influxdbComponent) Setup() error {
+	oc := c.GetCluster()
+	s, err := getSession(oc)
+	if err != nil {
+		return errors.Wrap(err, "get mcclient session")
+	}
+	_, exists, err := onecloud.IsServiceExists(s, c.serviceName)
+	if err != nil {
+		return errors.Wrap(err, "check service exists")
+	}
+	err = c.RegisterCloudServiceEndpoint(c.cType, c.serviceName, c.serviceType, c.port, c.prefix, true)
+	if err != nil {
+		return errors.Wrap(err, "RegisterCloudServiceEndpoint")
+	}
+	if !exists {
+		regionName := NewClusterComponentName(oc.GetName(), v1alpha1.RegionComponentType)
+		region, err := c.manager.GetController().kubeCli.AppsV1().Deployments(oc.Namespace).Get(context.Background(), regionName, metav1.GetOptions{})
+		if err != nil && k8serrors.IsNotFound(err) {
+			return nil
+		} else if region.Status.ReadyReplicas == 0 {
+			return nil
+		}
+
+		log.Infof("influxdb service not exist, restart region service")
+		// restart region service to reload influxdb endpoint
+		err = c.manager.GetController().kubeCli.AppsV1().Deployments(oc.Namespace).Delete(context.Background(), regionName, metav1.DeleteOptions{})
+		if err != nil {
+			log.Errorf("failed delete region deployment %s", err)
+		}
+	}
+	return nil
+}
+
 type itsmComponent struct {
 	*registerEndpointComponent
 }
@@ -1119,40 +1220,41 @@ func (c monitorComponent) Setup() error {
 func (c monitorComponent) SystemInit(oc *v1alpha1.OnecloudCluster) error {
 	alertInfo := c.getInitInfo()
 	//c.manager.GetController().getSession(c.GetCluster())
-	session := auth.GetAdminSession(context.Background(), "")
-	rtnAlert, err := onecloud.GetCommonAlertOfSys(session)
-	if err != nil {
-		return errors.Wrap(err, "monitorComponent GetCommonAlertOfSys")
-	}
-	tmpAlert := rtnAlert
-	for metric, tem := range alertInfo {
-		match, id, alert, deleteAlerts, err := c.matchFromRtnAlerts(metric, tmpAlert)
+	return RunWithSession(oc, func(session *mcclient.ClientSession) error {
+		rtnAlert, err := onecloud.GetCommonAlertOfSys(session)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "monitorComponent GetCommonAlertOfSys")
 		}
-		if match && alert != nil {
-			_, err := onecloud.UpdateCommonAlert(session, tem, id, alert)
+		tmpAlert := rtnAlert
+		for metric, tem := range alertInfo {
+			match, id, alert, deleteAlerts, err := c.matchFromRtnAlerts(metric, tmpAlert)
 			if err != nil {
-				log.Errorf("UpdateCommonAlert err:%v", err)
+				return err
+			}
+			if match && alert != nil {
+				_, err := onecloud.UpdateCommonAlert(session, tem, id, alert)
+				if err != nil {
+					log.Errorf("UpdateCommonAlert err:%v", err)
+				}
+				tmpAlert = deleteAlerts
+				continue
+			}
+			_, err = onecloud.CreateCommonAlert(session, tem)
+			if err != nil {
+				log.Errorln("CreateCommonAlert err:", err)
 			}
 			tmpAlert = deleteAlerts
-			continue
 		}
-		_, err = onecloud.CreateCommonAlert(session, tem)
-		if err != nil {
-			log.Errorln("CreateCommonAlert err:", err)
+		ids := make([]string, 0)
+		for _, alert := range tmpAlert {
+			id, _ := alert.GetString("id")
+			ids = append(ids, id)
 		}
-		tmpAlert = deleteAlerts
-	}
-	ids := make([]string, 0)
-	for _, alert := range tmpAlert {
-		id, _ := alert.GetString("id")
-		ids = append(ids, id)
-	}
-	if len(ids) != 0 {
-		onecloud.DeleteCommonAlert(session, ids)
-	}
-	return nil
+		if len(ids) != 0 {
+			onecloud.DeleteCommonAlert(session, ids)
+		}
+		return nil
+	})
 }
 
 func (c monitorComponent) matchFromRtnAlerts(metric string, rtnAlert []jsonutils.JSONObject) (bool, string,
@@ -1255,18 +1357,10 @@ func (c monitorComponent) getInitInfo() map[string]onecloud.CommonAlertTem {
 	smartDevTem := onecloud.CommonAlertTem{
 		Database:    "telegraf",
 		Measurement: "smart_device",
-		Field:       []string{"exit_status"},
+		Field:       []string{"health_ok"},
 		FieldFunc:   "last",
 		Comparator:  "==",
 		Threshold:   0,
-		Filters: []monitor.MetricQueryTag{
-			{
-				Key:       "health_ok",
-				Operator:  "=",
-				Value:     "false",
-				Condition: "AND",
-			},
-		},
 		Name:        "smart_device.exit_status",
 		Reduce:      "last",
 		Description: "监测磁盘健康状态",
@@ -1331,7 +1425,8 @@ func (c monitorComponent) getInitInfo() map[string]onecloud.CommonAlertTem {
 		ConditionType: "nodata_query",
 		From:          "3m",
 		Interval:      "1m",
-		Description:   "监测部署节点是否下线",
+		Description:   "监测节点启动时间",
+		Level:         "important",
 	}
 
 	defunctProcessTem := onecloud.CommonAlertTem{

@@ -47,6 +47,7 @@ import (
 	"yunion.io/x/onecloud-operator/pkg/controller"
 	"yunion.io/x/onecloud-operator/pkg/label"
 	"yunion.io/x/onecloud-operator/pkg/manager"
+	"yunion.io/x/onecloud-operator/pkg/service-init/component"
 	"yunion.io/x/onecloud-operator/pkg/util/k8sutil"
 )
 
@@ -245,7 +246,7 @@ func (m *ComponentManager) syncConfigMap(
 	{
 		dbConfig := dbConfigFactory(clustercfg)
 		if dbConfig != nil {
-			if err := EnsureClusterDBUser(oc, *dbConfig); err != nil {
+			if err := component.EnsureClusterDBUser(oc, *dbConfig); err != nil {
 				return errorswrap.Wrap(err, "ensure cluster db user")
 			}
 		}
@@ -253,7 +254,7 @@ func (m *ComponentManager) syncConfigMap(
 	if len(oc.Spec.Clickhouse.Host) > 0 {
 		clickhouseConfig := f.getClickhouseConfig(clustercfg)
 		if clickhouseConfig != nil && IsEnterpriseEdition(oc) {
-			if err := EnsureClusterClickhouseUser(oc, *clickhouseConfig); err != nil {
+			if err := component.EnsureClusterClickhouseUser(oc, *clickhouseConfig); err != nil {
 				return errorswrap.Wrap(err, "ensure clickhouse cluster db user")
 			}
 		}
@@ -262,7 +263,7 @@ func (m *ComponentManager) syncConfigMap(
 		account := svcAccountFactory(clustercfg)
 		if account != nil {
 			if err := m.onecloudControl.RunWithSession(oc, func(s *mcclient.ClientSession) error {
-				if err := EnsureServiceAccount(s, *account); err != nil {
+				if err := component.EnsureServiceAccount(s, *account); err != nil {
 					return errorswrap.Wrapf(err, "ensure service account %#v", *account)
 				}
 				return nil
@@ -766,6 +767,7 @@ func (m *ComponentManager) newDeployment(
 					Volumes:          vols,
 					HostNetwork:      hostNetwork,
 					DNSPolicy:        dnsPolicy,
+					DNSConfig:        spec.DNSConfig,
 					ImagePullSecrets: spec.ImagePullSecrets,
 				},
 			},
@@ -786,6 +788,7 @@ func (m *ComponentManager) newDeployment(
 	if hostNetwork {
 		appDeploy.Spec.Strategy = apps.DeploymentStrategy{Type: apps.RecreateDeploymentStrategyType}
 	}
+
 	return appDeploy, nil
 }
 
