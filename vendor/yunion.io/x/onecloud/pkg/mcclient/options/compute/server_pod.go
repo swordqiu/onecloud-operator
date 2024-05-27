@@ -36,6 +36,9 @@ type PodCreateOptions struct {
 	AllowDelete *bool    `help:"Unlock server to allow deleting" json:"-"`
 	PortMapping []string `help:"Port mapping of the pod and the format is: host_port=8080,port=80,protocol=<tcp|udp>,host_port_range=<int>-<int>" short-token:"p"`
 	Arch        string   `help:"image arch" choices:"aarch64|x86_64"`
+	AutoStart   bool     `help:"Auto start server after it is created"`
+	PodUid      int64    `help:"UID of pod" default:"0"`
+	PodGid      int64    `help:"GID of pod" default:"0"`
 
 	ContainerCreateCommonOptions
 }
@@ -198,6 +201,7 @@ func (o *PodCreateOptions) Params() (*computeapi.ServerCreateInput, error) {
 	params := &computeapi.ServerCreateInput{
 		ServerConfigs: config,
 		VcpuCount:     o.VcpuCount,
+		AutoStart:     o.AutoStart,
 		Pod: &computeapi.PodCreateInput{
 			PortMappings: portMappings,
 			Containers: []*computeapi.PodContainerCreateInput{
@@ -205,7 +209,15 @@ func (o *PodCreateOptions) Params() (*computeapi.ServerCreateInput, error) {
 					ContainerSpec: *spec,
 				},
 			},
+			SecurityContext: &computeapi.PodSecurityContext{},
 		},
+	}
+
+	if o.Uid != 0 {
+		params.Pod.SecurityContext.RunAsUser = &o.Uid
+	}
+	if o.Gid != 0 {
+		params.Pod.SecurityContext.RunAsGroup = &o.Gid
 	}
 
 	if options.BoolV(o.AllowDelete) {
@@ -233,4 +245,10 @@ func (o *PodCreateOptions) Params() (*computeapi.ServerCreateInput, error) {
 	params.OsArch = o.Arch
 	params.Name = o.NAME
 	return params, nil
+}
+
+type PodExecOptions struct {
+	ContainerExecOptions
+	Scope     string `help:"Scope of containers query" choices:"system|domain|project"`
+	Container string `help:"Container name. If omitted, use the first container." short-token:"c"`
 }

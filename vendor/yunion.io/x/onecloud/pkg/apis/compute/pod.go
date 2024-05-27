@@ -47,6 +47,11 @@ const (
 	//PodPortMappingProtocolSCTP = "sctp"
 )
 
+const (
+	POD_PORT_MAPPING_RANGE_START = 20000
+	POD_PORT_MAPPING_RANGE_END   = 25000
+)
+
 type PodPortMappingPortRange struct {
 	Start int `json:"start"`
 	End   int `json:"end"`
@@ -60,9 +65,15 @@ type PodPortMapping struct {
 	HostPortRange *PodPortMappingPortRange `json:"host_port_range,omitempty"`
 }
 
+type PodSecurityContext struct {
+	RunAsUser  *int64 `json:"run_as_user,omitempty"`
+	RunAsGroup *int64 `json:"run_as_group,omitempty"`
+}
+
 type PodCreateInput struct {
-	Containers   []*PodContainerCreateInput `json:"containers"`
-	PortMappings []*PodPortMapping          `json:"port_mappings"`
+	Containers      []*PodContainerCreateInput `json:"containers"`
+	PortMappings    []*PodPortMapping          `json:"port_mappings"`
+	SecurityContext *PodSecurityContext        `json:"security_context,omitempty"`
 }
 
 type PodStartResponse struct {

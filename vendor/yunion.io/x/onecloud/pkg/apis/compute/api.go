@@ -94,10 +94,11 @@ type NetworkConfig struct {
 	BwLimit        int    `json:"bw_limit"`
 	Vip            bool   `json:"vip"`
 	Reserved       bool   `json:"reserved"`
-	NetType        string `json:"net_type"`
 	NumQueues      int    `json:"num_queues"`
 	RxTrafficLimit int64  `json:"rx_traffic_limit"`
 	TxTrafficLimit int64  `json:"tx_traffic_limit"`
+
+	NetType TNetworkType `json:"net_type"`
 
 	IsDefault bool `json:"is_default"`
 
@@ -284,7 +285,7 @@ type IsolatedDeviceConfig struct {
 	DevType      string `json:"dev_type"`
 	Model        string `json:"model"`
 	Vendor       string `json:"vendor"`
-	NetworkIndex *int8  `json:"network_index"`
+	NetworkIndex *int   `json:"network_index"`
 	WireId       string `json:"wire_id"`
 	DiskIndex    *int8  `json:"disk_index"`
 	DevicePath   string `json:"device_path"`
@@ -349,6 +350,9 @@ type ServerConfigs struct {
 	// |ctyun        |    天翼云        |
 	// default: kvm
 	Hypervisor string `json:"hypervisor"`
+
+	// swagger: ignore
+	Provider string `json:"provider"`
 
 	// 包年包月资源池
 	// swagger:ignore

@@ -177,6 +177,8 @@ type SCloudaccount struct {
 
 	// 跳过部分资源同步
 	SkipSyncResources *api.SkipSyncResources `length:"medium" get:"user" update:"domain" list:"user"`
+
+	EnableAutoSyncResource tristate.TriState `get:"user" update:"domain" create:"optional" list:"user" default:"true"`
 }
 
 func (acnt *SCloudaccount) IsNotSkipSyncResource(res lockman.ILockedClass) bool {
@@ -519,6 +521,9 @@ func (manager *SCloudaccountManager) validateCreateData(
 	}
 	input.IsPublicCloud = providerDriver.IsPublicCloud()
 	input.IsOnPremise = providerDriver.IsOnPremise()
+	if providerDriver.IsReadOnly() {
+		input.ReadOnly = true
+	}
 
 	if !input.SkipDuplicateAccountCheck {
 		q := manager.Query().Equals("provider", input.Provider)
@@ -576,7 +581,10 @@ func (manager *SCloudaccountManager) validateCreateData(
 		if err != nil {
 			return input, err
 		}
-		regions := provider.GetIRegions()
+		regions, err := provider.GetIRegions()
+		if err != nil {
+			return input, err
+		}
 		for _, region := range regions {
 			input.SubAccounts.Cloudregions = append(input.SubAccounts.Cloudregions, struct {
 				Id     string
@@ -680,10 +688,6 @@ func (acnt *SCloudaccount) getPassword() (string, error) {
 func (acnt *SCloudaccount) PerformSync(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input api.SyncRangeInput) (jsonutils.JSONObject, error) {
 	if !acnt.GetEnabled() {
 		return nil, httperrors.NewInvalidStatusError("Account disabled")
-	}
-
-	if acnt.SyncStatus != api.CLOUD_PROVIDER_SYNC_STATUS_IDLE {
-		return nil, httperrors.NewInvalidStatusError("Account is not idle")
 	}
 
 	syncRange := SSyncRange{SyncRangeInput: input}
@@ -2463,7 +2467,7 @@ func (account *SCloudaccount) syncAccountStatus(ctx context.Context, userCred mc
 		if providers[i].GetEnabled() {
 			_, err := providers[i].prepareCloudproviderRegions(ctx, userCred)
 			if err != nil {
-				return errors.Wrapf(err, "prepareCloudproviderRegions for provider %s", providers[i].Name)
+				providers[i].SetStatus(ctx, userCred, api.CLOUD_PROVIDER_DISCONNECTED, errors.Wrapf(err, "prepareCloudproviderRegions").Error())
 			}
 		}
 	}
@@ -2784,32 +2788,6 @@ func (manager *SCloudaccountManager) getBrandsOfProvider(provider string) ([]str
 	return ret, nil
 }
 
-func guessBrandForHypervisor(hypervisor string) string {
-	if hypervisor == "" {
-		return api.HYPERVISOR_KVM
-	}
-	driver := GetDriver(hypervisor)
-	if driver == nil {
-		log.Errorf("guestBrandFromHypervisor: fail to find driver for hypervisor %s", hypervisor)
-		return ""
-	}
-	provider := driver.GetProvider()
-	if len(provider) == 0 {
-		log.Errorf("guestBrandFromHypervisor: fail to find provider for hypervisor %s", hypervisor)
-		return ""
-	}
-	brands, err := CloudaccountManager.getBrandsOfProvider(provider)
-	if err != nil {
-		log.Errorf("guestBrandFromHypervisor: fail to find brands for hypervisor %s", hypervisor)
-		return ""
-	}
-	if len(brands) != 1 {
-		log.Errorf("guestBrandFromHypervisor: find mistached number of brands for hypervisor %s %s", hypervisor, brands)
-		return ""
-	}
-	return brands[0]
-}
-
 func (account *SCloudaccount) PerformSyncSkus(ctx context.Context, userCred mcclient.TokenCredential, query jsonutils.JSONObject, input api.CloudaccountSyncSkusInput) (jsonutils.JSONObject, error) {
 	if !account.GetEnabled() {
 		return nil, httperrors.NewInvalidStatusError("Account disabled")
@@ -2856,32 +2834,6 @@ func (account *SCloudaccount) PerformSyncSkus(ctx context.Context, userCred mccl
 	}
 
 	return nil, nil
-}
-
-func (acnt *SCloudaccount) GetExternalProjects() ([]SExternalProject, error) {
-	projects := []SExternalProject{}
-	q := ExternalProjectManager.Query().Equals("cloudaccount_id", acnt.Id)
-	err := db.FetchModelObjects(ExternalProjectManager, q, &projects)
-	if err != nil {
-		return nil, errors.Wrap(err, "db.FetchModelObjects")
-	}
-	return projects, nil
-}
-
-func (acnt *SCloudaccount) GetExternalProjectsByProjectIdOrName(projectId, name string) ([]SExternalProject, error) {
-	projects := []SExternalProject{}
-	q := ExternalProjectManager.Query().Equals("cloudaccount_id", acnt.Id)
-	q = q.Filter(
-		sqlchemy.OR(
-			sqlchemy.Equals(q.Field("name"), name),
-			sqlchemy.Equals(q.Field("tenant_id"), projectId),
-		),
-	).Desc("priority")
-	err := db.FetchModelObjects(ExternalProjectManager, q, &projects)
-	if err != nil {
-		return nil, errors.Wrap(err, "db.FetchModelObjects")
-	}
-	return projects, nil
 }
 
 func (manager *SCloudaccountManager) queryCloudAccountByCapability(region *SCloudregion, zone *SZone, domainId string, enabled tristate.TriState, capability string) *sqlchemy.SQuery {
@@ -2994,66 +2946,6 @@ func GetAvailableExternalProject(local *db.STenant, projects []SExternalProject)
 		}
 	}
 	return ret
-}
-
-// 若本地项目映射了多个云上项目，则在根据优先级找优先级最大的云上项目
-// 若本地项目没有映射云上任何项目，则在云上新建一个同名项目
-// 若本地项目a映射云上项目b，但b项目不可用,则看云上是否有a项目，有则直接使用,若没有则在云上创建a-1, a-2类似项目
-func (acnt *SCloudaccount) SyncProject(ctx context.Context, userCred mcclient.TokenCredential, projectId string) (string, error) {
-	lockman.LockRawObject(ctx, "projects", acnt.Id)
-	defer lockman.ReleaseRawObject(ctx, "projects", acnt.Id)
-
-	provider, err := acnt.GetProvider(ctx)
-	if err != nil {
-		return "", errors.Wrap(err, "GetProvider")
-	}
-
-	if !cloudprovider.IsSupportProject(provider) {
-		return "", nil
-	}
-
-	project, err := db.TenantCacheManager.FetchTenantById(ctx, projectId)
-	if err != nil {
-		return "", errors.Wrapf(err, "FetchTenantById(%s)", projectId)
-	}
-
-	projects, err := acnt.GetExternalProjectsByProjectIdOrName(projectId, project.Name)
-	if err != nil {
-		return "", errors.Wrapf(err, "GetExternalProjectsByProjectIdOrName(%s,%s)", projectId, project.Name)
-	}
-
-	extProj := GetAvailableExternalProject(project, projects)
-	if extProj != nil {
-		return extProj.ExternalId, nil
-	}
-
-	retry := 1
-	if len(projects) > 0 {
-		retry = 10
-	}
-
-	var iProject cloudprovider.ICloudProject = nil
-	projectName := project.Name
-	for i := 0; i < retry; i++ {
-		iProject, err = provider.CreateIProject(projectName)
-		if err == nil {
-			break
-		}
-		projectName = fmt.Sprintf("%s-%d", project.Name, i)
-	}
-	if err != nil {
-		if errors.Cause(err) != cloudprovider.ErrNotImplemented && errors.Cause(err) != cloudprovider.ErrNotSupported {
-			logclient.AddSimpleActionLog(acnt, logclient.ACT_CREATE, err, userCred, false)
-		}
-		return "", errors.Wrapf(err, "CreateIProject(%s)", projectName)
-	}
-
-	extProj, err = ExternalProjectManager.newFromCloudProject(ctx, userCred, acnt, project, iProject)
-	if err != nil {
-		return "", errors.Wrap(err, "newFromCloudProject")
-	}
-
-	return extProj.ExternalId, nil
 }
 
 // 获取Azure Enrollment Accounts
