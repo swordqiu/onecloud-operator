@@ -443,6 +443,14 @@ const (
 	ExtdbPort         = 30991
 	ExtdbDB           = "extdb"
 	ExtdbDBUser       = "extdb"
+
+	ServiceNameCloudPhone  = "cloud-phone"
+	ServiceTypeCloudPhone  = "cloud-phone"
+	CloudPhoneAdminUser    = "cloudphoneadmin"
+	CloudPhoneAdminProject = SysAdminProject
+	CloudPhonePort         = 30992
+	CloudPhoneDB           = "cloudphone"
+	CloudPhoneDBUser       = "cloudphone"
 )
 
 var (

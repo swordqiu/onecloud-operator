@@ -150,9 +150,12 @@ const (
 	HostHealthComponentType ComponentType = "host-health"
 
 	BastionHostComponentType ComponentType = "bastionhost"
-	CloudmuxComponentType    ComponentType = "cloudmux"
+
+	CloudmuxComponentType ComponentType = "cloudmux"
 
 	ExtdbComponentType ComponentType = "extdb"
+
+	CloudPhoneComponentType ComponentType = "cloudphone"
 )
 
 // ComponentPhase is the current state of component
@@ -342,6 +345,8 @@ type OnecloudClusterSpec struct {
 	// Cloudmux holds configuration for cloudmux
 	Cloudmux CloudmuxSpec              `json:"cloudmux"`
 	Extdb    DeploymentServicePortSpec `json:"extdb"`
+
+	CloudPhone DeploymentServicePortSpec `json:"cloud-phone"`
 }
 
 func (s OnecloudClusterSpec) GetDbEngine(srvSpec TDBEngineType) TDBEngineType {
@@ -397,6 +402,7 @@ type OnecloudClusterStatus struct {
 	ECharts         DeploymentStatus     `json:"echarts,omitempty"`
 	BastionHost     DeploymentStatus     `json:"bastionHost,omitempty"`
 	Extdb           DeploymentStatus     `json:"extdb,omitempty"`
+	CloudPhone      DeploymentStatus     `json:"cloudPhone,omitempty"`
 }
 
 type EtcdClusterSpec struct {
@@ -1209,6 +1215,31 @@ type GlobalServiceCommonConfig struct {
 	TaskWorkerCount      int `json:"task_worker_count" default:"4"`
 }
 
+type CloudPhoneCommonConfig struct {
+	S3AccessKey  string `json:"s3_access_key"`
+	S3SecretKey  string `json:"s3_secret_key"`
+	S3Endpoint   string `json:"s3_endpoint"`
+	S3UseSSL     bool   `json:"s3_use_ssl"`
+	S3BucketName string `json:"s3_bucket_name"`
+
+	BackupStorageId string `json:"backup_storage_id"`
+
+	HostTcpPortStart int `json:"host_tcp_port_start"`
+	HostTcpPortEnd   int `json:"host_tcp_port_end"`
+	HostUdpPortStart int `json:"host_udp_port_start"`
+	HostUdpPortEnd   int `json:"host_udp_port_end"`
+
+	AdbWhiteListPrefixes []string `json:"adb_white_list_prefixes"`
+
+	EnableCaseInsensitive bool `json:"enable_case_insensitive"`
+}
+
+type CloudPhoneConfig struct {
+	ServiceDBCommonOptions
+
+	CloudPhoneCommonConfig
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OnecloudClusterConfig struct {
@@ -1249,4 +1280,6 @@ type OnecloudClusterConfig struct {
 	Grafana         GrafanaConfig             `json:"grafana"`
 	BastionHost     ServiceDBCommonOptions    `json:"bastionHost"`
 	Extdb           ServiceDBCommonOptions    `json:"extdb"`
+
+	CloudPhone CloudPhoneConfig `json:"cloud-phone"`
 }

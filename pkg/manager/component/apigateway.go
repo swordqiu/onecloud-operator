@@ -148,6 +148,21 @@ func (m *apiGatewayManager) getDeployment(oc *v1alpha1.OnecloudCluster, cfg *v1a
 			MountPath: "/etc/yunion/data/",
 		})
 	}
+	hostCloudPathType := corev1.HostPathDirectory
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name: "cloud",
+		VolumeSource: corev1.VolumeSource{
+			HostPath: &corev1.HostPathVolumeSource{
+				Path: "/opt/cloud/",
+				Type: &hostCloudPathType,
+			},
+		},
+	})
+	apiContainer.VolumeMounts = append(apiContainer.VolumeMounts, corev1.VolumeMount{
+		Name:      "cloud",
+		ReadOnly:  false,
+		MountPath: "/opt/cloud/",
+	})
 	return deploy, nil
 }
 
