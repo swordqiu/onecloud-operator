@@ -1232,6 +1232,16 @@ type CloudPhoneCommonConfig struct {
 	AdbWhiteListPrefixes []string `json:"adb_white_list_prefixes"`
 
 	EnableCaseInsensitive bool `json:"enable_case_insensitive"`
+
+	LivenessProbeMethod string `json:"liveness_probe_method"`
+
+	EnableAmdTestFilesMapping bool `json:"enable_amd_test_files_mapping"`
+
+	DataDiskFs string `json:"data_disk_fs"`
+
+	DefaultInstantAppQuotaGb int `json:"default_instant_app_quota_gb"`
+
+	EnableRootfsLimit bool `json:"enable_rootfs_limit"`
 }
 
 type CloudPhoneConfig struct {

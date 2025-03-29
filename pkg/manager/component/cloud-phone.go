@@ -112,6 +112,8 @@ func (m *cloudPhoneManager) getConfigMap(oc *v1alpha1.OnecloudCluster, cfg *v1al
 
 	opt.CloudPhoneCommonConfig = config.CloudPhoneCommonConfig
 
+	opt.EnableAmdTestFilesMapping = true
+
 	return m.newServiceConfigMap(v1alpha1.CloudPhoneComponentType, "", oc, opt), false, nil
 }
 

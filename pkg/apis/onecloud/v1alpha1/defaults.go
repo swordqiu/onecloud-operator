@@ -624,6 +624,7 @@ func SetDefaults_RegionDNSSpec(obj *RegionDNSSpec, imageRepo, version string) {
 		version, obj.Tag,
 		false, false,
 	))
+	obj.InCloudOnly = true
 }
 
 func setPVCStoreage(obj *ContainerSpec, size string) {
