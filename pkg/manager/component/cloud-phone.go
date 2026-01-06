@@ -20,12 +20,14 @@ import (
 	apps "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 
+	"yunion.io/x/onecloud/pkg/mcclient"
 	"yunion.io/x/pkg/errors"
 
 	"yunion.io/x/onecloud-operator/pkg/apis/constants"
 	"yunion.io/x/onecloud-operator/pkg/apis/onecloud/v1alpha1"
 	"yunion.io/x/onecloud-operator/pkg/controller"
 	"yunion.io/x/onecloud-operator/pkg/manager"
+	"yunion.io/x/onecloud-operator/pkg/util/onecloud"
 	"yunion.io/x/onecloud-operator/pkg/util/option"
 )
 
@@ -118,7 +120,7 @@ func (m *cloudPhoneManager) getConfigMap(oc *v1alpha1.OnecloudCluster, cfg *v1al
 }
 
 func (m *cloudPhoneManager) getService(oc *v1alpha1.OnecloudCluster, cfg *v1alpha1.OnecloudClusterConfig, zone string) []*corev1.Service {
-	return []*corev1.Service{m.newSingleNodePortService(v1alpha1.CloudPhoneComponentType, oc, int32(oc.Spec.CloudPhone.Service.NodePort), int32(cfg.CloudPhone.Port))}
+	return m.newSingleNodePortService(v1alpha1.CloudPhoneComponentType, oc, int32(oc.Spec.CloudPhone.Service.NodePort), int32(cfg.CloudPhone.Port), oc.Spec.CloudPhone.SlaveReplicas > 0)
 }
 
 func (m *cloudPhoneManager) getDeployment(oc *v1alpha1.OnecloudCluster, cfg *v1alpha1.OnecloudClusterConfig, zone string) (*apps.Deployment, error) {
@@ -162,4 +164,22 @@ func (m *cloudPhoneManager) getDeployment(oc *v1alpha1.OnecloudCluster, cfg *v1a
 
 func (m *cloudPhoneManager) getDeploymentStatus(oc *v1alpha1.OnecloudCluster, zone string) *v1alpha1.DeploymentStatus {
 	return &oc.Status.CloudPhone
+}
+
+func (m *cloudPhoneManager) supportsReadOnlyService() bool {
+	return true
+}
+
+func (m *cloudPhoneManager) getReadonlyDeployment(oc *v1alpha1.OnecloudCluster, cfg *v1alpha1.OnecloudClusterConfig, zone string, deployment *apps.Deployment) *apps.Deployment {
+	return m.genReadonlyDeployment(v1alpha1.CloudPhoneComponentType, oc, deployment, &oc.Spec.CloudPhone.DeploymentSpec)
+}
+
+func (m *cloudPhoneManager) getMcclientSyncFunc(oc *v1alpha1.OnecloudCluster) func(*mcclient.ClientSession) error {
+	return func(s *mcclient.ClientSession) error {
+		if m.IsDisabled(oc) {
+			return onecloud.EnsureDisableService(s, m.GetServiceName())
+		} else {
+			return onecloud.EnsureEnableService(s, m.GetServiceName(), m.supportsReadOnlyService() && oc.Spec.CloudPhone.SlaveReplicas > 0)
+		}
+	}
 }
