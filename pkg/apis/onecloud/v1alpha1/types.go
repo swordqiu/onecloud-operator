@@ -163,6 +163,13 @@ const (
 	LLMComponentType ComponentType = "llm"
 
 	McpServerComponentType ComponentType = "mcp-server"
+
+	// RegisterComponentType is register service component type
+	RegisterComponentType ComponentType = "register"
+	// CloudDesktopComponentType is cloud desktop service component type
+	CloudDesktopComponentType ComponentType = "clouddesktop"
+	// CloudPhoneComponentType is cloud phone service component type
+	CloudPhoneComponentType ComponentType = "cloudphone"
 )
 
 // ComponentPhase is the current state of component
@@ -319,6 +326,12 @@ type OnecloudClusterSpec struct {
 	Meter MeterSpec `json:"meter"`
 	// Billing holds configuration for billing
 	Billing DeploymentServicePortSpec `json:"billing"`
+	// Register holds configuration for register
+	Register DeploymentServicePortSpec `json:"register"`
+	// CloudDesktop holds configuration for cloud desktop service
+	CloudDesktop DeploymentServicePortSpec `json:"clouddesktop"`
+	// CloudPhone holds configuration for cloud phone service
+	CloudPhone DeploymentServicePortSpec `json:"cloudphone"`
 	// AutoUpdate holds configuration for autoupdate
 	AutoUpdate DeploymentServicePortSpec `json:"autoupdate"`
 	// Cloudmon holds configuration for report monitor data
@@ -416,6 +429,9 @@ type OnecloudClusterStatus struct {
 	Extdb           DeploymentStatus     `json:"extdb,omitempty"`
 	LLM             DeploymentStatus     `json:"llm,omitempty"`
 	McpServer       DeploymentStatus     `json:"mcpServer,omitempty"`
+	Register        DeploymentStatus     `json:"register,omitempty"`
+	CloudDesktop    DeploymentStatus     `json:"clouddesktop,omitempty"`
+	CloudPhone      DeploymentStatus     `json:"cloudphone,omitempty"`
 }
 
 type EtcdClusterSpec struct {
@@ -1237,6 +1253,66 @@ type GlobalServiceCommonConfig struct {
 	TaskWorkerCount      int `json:"task_worker_count" default:"4"`
 }
 
+type CloudDesktopCommonConfig struct {
+	S3AccessKey  string `json:"s3_access_key"`
+	S3SecretKey  string `json:"s3_secret_key"`
+	S3Endpoint   string `json:"s3_endpoint"`
+	S3UseSSL     bool   `json:"s3_use_ssl"`
+	S3BucketName string `json:"s3_bucket_name"`
+
+	BackupStorageId string `json:"backup_storage_id"`
+
+	HostTcpPortStart int `json:"host_tcp_port_start" default:"20001"`
+	HostTcpPortEnd   int `json:"host_tcp_port_end" default:"24999"`
+	HostUdpPortStart int `json:"host_udp_port_start" default:"20001"`
+	HostUdpPortEnd   int `json:"host_udp_port_end" default:"24999"`
+
+	AdbWhiteListPrefixes []string `json:"adb_white_list_prefixes"`
+
+	EnableCaseInsensitive bool `json:"enable_case_insensitive"`
+}
+
+type CloudDesktopConfig struct {
+	ServiceDBCommonOptions
+
+	CloudDesktopCommonConfig
+}
+
+type CloudPhoneCommonConfig struct {
+	S3AccessKey  string `json:"s3_access_key"`
+	S3SecretKey  string `json:"s3_secret_key"`
+	S3Endpoint   string `json:"s3_endpoint"`
+	S3UseSSL     bool   `json:"s3_use_ssl"`
+	S3BucketName string `json:"s3_bucket_name"`
+
+	BackupStorageId string `json:"backup_storage_id"`
+
+	HostTcpPortStart int `json:"host_tcp_port_start"`
+	HostTcpPortEnd   int `json:"host_tcp_port_end"`
+	HostUdpPortStart int `json:"host_udp_port_start"`
+	HostUdpPortEnd   int `json:"host_udp_port_end"`
+
+	AdbWhiteListPrefixes []string `json:"adb_white_list_prefixes"`
+
+	EnableCaseInsensitive bool `json:"enable_case_insensitive"`
+
+	LivenessProbeMethod string `json:"liveness_probe_method"`
+
+	EnableAmdTestFilesMapping bool `json:"enable_amd_test_files_mapping"`
+
+	DataDiskFs string `json:"data_disk_fs"`
+
+	DefaultInstantAppQuotaGb int `json:"default_instant_app_quota_gb"`
+
+	EnableRootfsLimit bool `json:"enable_rootfs_limit"`
+}
+
+type CloudPhoneConfig struct {
+	ServiceDBCommonOptions
+
+	CloudPhoneCommonConfig
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type OnecloudClusterConfig struct {
@@ -1267,6 +1343,9 @@ type OnecloudClusterConfig struct {
 	Devtool         ServiceDBCommonOptions    `json:"devtool"`
 	Meter           MeterConfig               `json:"meter"`
 	Billing         ServiceDBCommonOptions    `json:"billing"`
+	Register        ServiceDBCommonOptions    `json:"register"`
+	CloudDesktop    CloudDesktopConfig        `json:"clouddesktop"`
+	CloudPhone      CloudPhoneConfig          `json:"cloudphone"`
 	AutoUpdate      ServiceDBCommonOptions    `json:"autoupdate"`
 	EsxiAgent       EsxiAgentConfig           `json:"esxiagent"`
 	VpcAgent        VpcAgentConfig            `json:"vpcagent"`

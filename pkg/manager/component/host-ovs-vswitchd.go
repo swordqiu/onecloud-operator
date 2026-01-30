@@ -2,6 +2,7 @@ package component
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"yunion.io/x/log"
 	"yunion.io/x/onecloud-operator/pkg/apis/constants"
 	"yunion.io/x/onecloud-operator/pkg/apis/onecloud/v1alpha1"
@@ -23,7 +24,9 @@ func isDsReady(factory cloudComponentFactory, oc *v1alpha1.OnecloudCluster, comp
 	dsName := controller.NewClusterComponentName(ocName, componentType)
 	dsOvsdbServer, err := cm.dsLister.DaemonSets(ns).Get(dsName)
 	if err != nil {
-		log.Errorf("get daemonset %s error: %v", dsName, err)
+		if !errors.IsNotFound(err) {
+			log.Errorf("get daemonset %s error: %v", dsName, err)
+		}
 		return false
 	}
 	if dsOvsdbServer == nil {

@@ -217,6 +217,9 @@ func SetDefaults_OnecloudClusterSpec(obj *OnecloudClusterSpec, isEE bool, isEEOr
 		BillingComponentType:         nHP(&obj.Billing.DeploymentSpec, useHyperImage),
 		LLMComponentType:             nHP(&obj.LLM.DeploymentSpec, useHyperImage),
 		McpServerComponentType:       nHP(&obj.McpServer.DeploymentSpec, useHyperImage),
+		RegisterComponentType:        nHP(&obj.Register.DeploymentSpec, useHyperImage),
+		CloudDesktopComponentType:    nHP(&obj.CloudDesktop.DeploymentSpec, useHyperImage),
+		CloudPhoneComponentType:      nHP(&obj.CloudPhone.DeploymentSpec, useHyperImage),
 	} {
 		SetDefaults_DeploymentSpec(spec.DeploymentSpec, getImage(
 			obj.ImageRepository, spec.Repository,
@@ -504,6 +507,9 @@ func setDefaults_Components_ServicePort(obj *OnecloudClusterSpec) {
 		newSP(&obj.Extdb.Service, constants.ExtdbPort),
 		newSP(&obj.LLM.Service, constants.LLMPort),
 		newSP(&obj.McpServer.Service, constants.McpServerPort),
+		newSP(&obj.CloudDesktop.Service, constants.CloudDesktopPort),
+		newSP(&obj.CloudPhone.Service, constants.CloudPhonePort),
+		newSP(&obj.Register.Service, constants.RegisterPort),
 	} {
 		SetDefaults_ServiceSpec(spec.spec, spec.defaultPort)
 	}
@@ -835,6 +841,9 @@ func SetDefaults_OnecloudClusterConfig(obj *OnecloudClusterConfig) {
 		&obj.BastionHost:                         {constants.BastionHostAdminUser, constants.BastionHostPort, constants.BastionHostDB, constants.BastionHostDBUser},
 		&obj.Extdb:                               {constants.ExtdbAdminUser, constants.ExtdbPort, constants.ExtdbDB, constants.ExtdbDBUser},
 		&obj.LLM:                                 {constants.LLMAdminUser, constants.LLMPort, constants.LLMDB, constants.LLMDBUser},
+		&obj.CloudDesktop.ServiceDBCommonOptions: {constants.CloudDesktopAdminUser, constants.CloudDesktopPort, constants.CloudDesktopDB, constants.CloudDesktopDBUser},
+		&obj.CloudPhone.ServiceDBCommonOptions:   {constants.CloudPhoneAdminUser, constants.CloudPhonePort, constants.CloudPhoneDB, constants.CloudPhoneDBUser},
+		&obj.Register:                            {constants.RegisterAdminUser, constants.RegisterPort, constants.RegisterDB, constants.RegisterDBUser},
 	} {
 		if user, ok := registryPorts[tmp.port]; ok {
 			log.Fatalf("port %d has been registered by %s", tmp.port, user)

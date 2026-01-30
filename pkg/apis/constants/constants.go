@@ -457,6 +457,29 @@ const (
 	McpServerAdminUser    = "mcp-server-admin"
 	McpServerAdminProject = SysAdminProject
 	McpServerPort         = 30876
+
+	ServiceNameRegister = "register"
+	ServiceTypeRegister = "register"
+	RegisterAdminUser   = "registeradmin"
+	RegisterPort        = 30401
+	RegisterDB          = "yunionregister"
+	RegisterDBUser      = "yunionregister"
+
+	ServiceNameCloudPhone  = "cloudphone"
+	ServiceTypeCloudPhone  = "cloudphone"
+	CloudPhoneAdminUser    = "cloudphoneadmin"
+	CloudPhoneAdminProject = SysAdminProject
+	CloudPhonePort         = 30992
+	CloudPhoneDB           = "cloudphone"
+	CloudPhoneDBUser       = "cloudphone"
+
+	ServiceNameCloudDesktop  = "clouddesktop"
+	ServiceTypeCloudDesktop  = "clouddesktop"
+	CloudDesktopAdminUser    = "clouddesktopadmin"
+	CloudDesktopAdminProject = SysAdminProject
+	CloudDesktopPort         = 30993
+	CloudDesktopDB           = "clouddesktop"
+	CloudDesktopDBUser       = "clouddesktop"
 )
 
 var (
