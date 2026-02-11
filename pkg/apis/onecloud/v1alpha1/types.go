@@ -978,6 +978,7 @@ type RegionDNSProxy struct {
 type RegionDNSSpec struct {
 	DaemonSetSpec
 	CacheTtl    int              `json:"cache_ttl"`
+	EnableIPv6  bool             `json:"enable_ipv6"`
 	Proxies     []RegionDNSProxy `json:"proxies"`
 	InCloudOnly bool             `json:"in_cloud_only"`
 }

@@ -33,6 +33,11 @@ import (
 
 const (
 	RegionDNSConfigTemplate = `.:53 {
+ 
+    {{- if .DisableAAAA }}
+    rewrite stop type AAAA A
+    {{- end}}
+
     cache {{.CacheTtl}}
 
     yunion . {
@@ -51,7 +56,7 @@ const (
         {{end}}fallthrough .
     }
 
-    {{- range .Proxies }}
+   {{- range .Proxies }}
 
     proxy {{.From}} {{.To}} {
     }
@@ -67,6 +72,8 @@ type RegionDNSConfig struct {
 	options.CommonOptions
 
 	CacheTtl int
+
+	DisableAAAA bool
 
 	SQLConnection string
 
@@ -156,6 +163,8 @@ func (m *regionDNSManager) getConfigMap(oc *v1alpha1.OnecloudCluster, cfg *v1alp
 	regionSpec := oc.Spec.RegionServer
 	config := RegionDNSConfig{
 		CacheTtl: spec.CacheTtl,
+
+		DisableAAAA: !spec.EnableIPv6,
 
 		SQLConnection: dbOptions.SqlConnection,
 
